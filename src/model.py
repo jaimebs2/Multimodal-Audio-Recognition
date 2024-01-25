@@ -1,6 +1,6 @@
 """Model Loader."""
 import torch
-from transformers import WhisperProcessor, WhisperForAudioClassification
+from transformers import AutoTokenizer, AutoModelForCausalLM
 
 class ModelLoader:
     """
@@ -23,7 +23,7 @@ class ModelLoader:
         """
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.config = config
-        self.classifier, self.processor = self.load()
+        self.model, self.tokenizer = self.load()
 
     def freeze_layers(self):
         """
@@ -32,13 +32,18 @@ class ModelLoader:
         Args:
             config (Namespace): Configuration containing freezing layer information.
         """
-        if 'classifier' in self.config['frozen_layers']:
-            for param in self.classifier.encoder.parameters():
+        if 'lm_head' in self.config['frozen_layers']:
+            for param in self.model.lm_head.parameters():
                 param.requires_grad = False
-        if 'projector' in self.config['frozen_layers']:
-            for param in self.classifier.projector.parameters():
+        if 'wte' in self.config['frozen_layers']:
+            for param in self.model.wte.parameters():
                 param.requires_grad = False
-        self.classifier = self.classifier.to(self.device)
+        if 'audio_encoder' in self.config['frozen_layers']:
+            for param in self.model.audio.parameters():
+                param.requires_grad = False
+        if 'llm' in self.config['frozen_layers']:
+            for param in self.model.h.parameters():
+                param.requires_grad = False
 
     def load(self):
         """
@@ -51,7 +56,7 @@ class ModelLoader:
             model (WhisperForAudioClassification): Loaded Whisper model for audio classification.
             processor (WhisperProcessor): Loaded Whisper processor for data preprocessing.
         """
-        self.processor = WhisperProcessor.from_pretrained(self.config['processor'], device=self.device)
-        self.classifier = WhisperForAudioClassification.from_pretrained(self.config['model'], num_labels=self.config['output_size'])
-        self.freeze_layers()
-        return self.classifier, self.processor
+        tokenizer = AutoTokenizer.from_pretrained(self.config['processor'], trust_remote_code=True)
+        model = AutoModelForCausalLM.from_pretrained(self.config['processor'],trust_remote_code=True).to(self.device)
+
+        return model, tokenizer

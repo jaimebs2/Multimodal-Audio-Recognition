@@ -1,2 +1,8 @@
 .env/
+venv/
 model_weights/
+.vscode/
+__pycache__/
+dev/
+lightning_files/
+```

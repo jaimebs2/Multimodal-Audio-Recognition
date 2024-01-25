@@ -69,6 +69,8 @@ class RAVDESSAudioDataLoader:
 
         return file_paths, labels
 
+data = RAVDESSAudioDataLoader()
+
 
 class AudioDataset(Dataset):
     """Custom dataset class for audio data."""
@@ -88,17 +90,20 @@ class AudioDataset(Dataset):
         self.sampling_rate = sampling_rate
         self.processor = processor
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.sp_prompt = "<|startofanalysis|><|en|><|emotion|><|en|><|notimestamps|>"
 
     def __len__(self):
         return len(self.file_paths)
 
     def __getitem__(self, idx):
-        audio, sr = librosa.load(self.file_paths[idx])
+        #audio, sr = librosa.load(self.file_paths[idx])
         label = int(self.labels[idx])
-        resampled_signal = scipy.signal.resample(audio, int(len(audio) * self.sampling_rate / sr))
-        output = self.processor(resampled_signal, sampling_rate=self.sampling_rate)
-        audio_tensor = torch.tensor(output['input_features'][0], dtype=torch.float32).to(self.device)
+        #resampled_signal = scipy.signal.resample(audio, int(len(audio) * self.sampling_rate / sr))
+        self.query = f"<audio>{self.file_paths[idx]}</audio>{self.sp_prompt}"
+        self.audio_info = self.processor.process_audio(self.query)
+        inputs = self.processor(self.query, return_tensors='pt', audio_info=self.audio_info)
+        inputs = inputs.to(self.device)
         label_tensor = torch.tensor(label, dtype=torch.long).to(self.device)
         if label_tensor == 8:
             label_tensor = torch.tensor(0, dtype=torch.long).to(self.device)
-        return audio_tensor, label_tensor
+        return inputs, label_tensor
